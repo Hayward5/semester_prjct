@@ -1,0 +1,85 @@
+----- Steps of Adding syscall on Kernel V6
+# Test Date : 2024_11_13
+# Ubuntu Version : ubuntu-22.04.5-desktop-amd64.iso
+# Kernel Version : Kernel 6.8
+
+Add sys call procedure
+
+# 1. Clone the repository from git
+in /home directory, clone the repository
+git clone --depth=1 --branch v6.8 https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git
+
+# 2. Now you get a folder called << linux >> where stores every files needed to be compiled as new kernel
+
+# 3. Update
+sudo apt update
+sudo apt-get install git
+sudo apt install flex
+sudo apt install bison
+sudo apt-get install libelf-dev
+sudo apt-get install libssl-dev
+sudo apt-get install build-essential libncurses-dev
+** sudo apt-get install build-essential vim git cscope libncurses-dev libssl-dev bison flex <-- or this for all
+
+# 4. Prepare your syscall c code
+- goto /linux (the cloned repo)
+    - run << make mrproper >>
+        - to clean the repository, removing old configuration files, object files, and compiled binaries, ensuring a fresh build.
+- create a folder e.g. << my_get_pa >>
+- put your syscall c code in it
+    - /linux/my_get_pa/my_get_pa.c
+- put your make file in it
+    - /linux/my_get_pa/Makefile
+    - Makefile content << obj-y := my_get_pa.o >>
+    
+# 5. Declare the syscall prototype 
+- go to  /linux/include/linux
+    - find << syscalls.h >>
+        - update your syscall prototype declaration in it    
+            - under << #ifndef CONFIG_ARCH_HAS_SYSCALL_WRAPPER >>
+                - copy and past << asmlinkage long sys_my_get_physical_addresses(void *addr_p); >>
+                - as the first syscall
+
+# 6. Put the makefile rule in Kbuild
+- go to /linux
+    - find << Kbuild >> file
+    - put << obj-y                   += my_get_pa/ >> in the last line of rules
+        - The rules tells the kernel build system to go to << my_get_pa >> folder and to also compile our newly included syscalls
+        
+# 7. Add syscall entry to the architecture specific table
+- Each CPU architecture has specific syscalls
+- we need to let it know
+- for x86_64
+    - go to /linux/arch/x86/entry/syscalls
+    - find << syscall_64.tbl >>
+    - add << 462     common  my_get_physical_addresses               sys_my_get_physical_addresses >> under 461 syscall
+    ** if the number is somthing else, just increment the number and must remember it
+
+# 8. Compiling and install the new kernel
+- set power to not hibernate or turn off the monitor
+- go to /linux 
+    - copy the old configuration to current folder
+    - run << cp /boot/config-$(uname -r) .config >>
+        - it is optional if we can use << make menuconfig >> to reconfigure the kernel
+        
+    - remove certificates
+        - run << scripts/config --disable SYSTEM_TRUSTED_KEYS >>
+        - run << scripts/config --disable SYSTEM_REVOCATION_KEYS >>
+        
+    - run << make olddefconfig >>
+        - there is other options, we may check the documentation
+        
+    - run << make -j $(nproc) >> to compile
+        ** after executing this, it will take very long and large disk space.
+        ** must prepare sufficient space to do it
+    
+    
+# 9. Install Module
+    - run << sudo make -j $(nproc) modules_install >>
+    - run << sudo make install >>
+    
+# 10. Reboot
+    - press and hold << shift >> to enter grub
+    - select << 6.8.0 - Dirty >>
+
+----- Success

@@ -1,0 +1,1 @@
+obj-y := my_get_pa.o
